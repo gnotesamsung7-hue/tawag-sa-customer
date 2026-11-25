@@ -61,7 +61,7 @@ h1{font-size:26px;margin:6px 0 0;font-weight:900}
   </ol>
 
   <button class="btn" id="connectBtn">🔔 Turn on my buzzer</button>
-  <button class="btn ghost hidden" id="notifyBtn">Also notify me if I switch apps</button>
+  <button class="btn hidden" id="notifyBtn">🔔 Allow notifications<br><span style="font-size:13px;font-weight:600">so we can reach you if you switch apps</span></button>
   <a class="btn ghost hidden" id="appLink">Open in the Tawag app</a>
   <span class="pill hidden" id="sig"><span class="dot"></span><span id="sigTxt"></span></span>
   <div class="box hidden" id="msg"></div>
@@ -130,7 +130,15 @@ function beep() { tone(1400, 0, .18); tone(1400, .28, .18); tone(1750, .56, .3);
 async function keepAwake() {
   try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state !== 'idle' && state !== 'done') keepAwake(); });
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || state === 'idle' || state === 'done') return;
+  keepAwake();
+  // Back from another app: reconnect if Chrome dropped the link, else re-read in case we missed a call.
+  try {
+    if (device && !device.gatt.connected) await attach();
+    else if (statusChar) onStatus(dec(await statusChar.readValue()));
+  } catch (e) { onDisconnected(); }
+});
 
 function startAlert() {
   $('#calling').classList.add('on');
