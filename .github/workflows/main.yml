@@ -41,9 +41,15 @@ jobs:
             echo "::error::Signing secrets are missing. Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (see README), then re-run this workflow."
             exit 1
           fi
-          # tolerate spaces / line breaks that sneak in when pasting
-          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | base64 -d > android/app/release.jks || {
-            echo "::error::ANDROID_KEYSTORE_BASE64 is not valid. Delete it and paste the long line from the secrets file again."; exit 1; }
+          # Keep only the long key text: drops spaces, line breaks and any label pasted along with it.
+          CLEAN=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n' | grep -oE '[A-Za-z0-9+/]{100,}={0,2}' | awk '{ if (length($0) > length(m)) m = $0 } END { print m }')
+          echo "Key text: ${#CLEAN} characters (the Tawag key is 3488). Pasted secret was ${#KEYSTORE_BASE64} characters."
+          if [ "${#CLEAN}" -lt 3000 ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 holds only ${#CLEAN} characters of key text. It should be 3488. Open ANDROID_KEYSTORE_BASE64.txt, press Ctrl+A then Ctrl+C, and paste it as the secret's value."
+            exit 1
+          fi
+          printf '%s' "$CLEAN" | base64 -d > android/app/release.jks 2>/dev/null || {
+            echo "::error::ANDROID_KEYSTORE_BASE64 doesn't decode. Open ANDROID_KEYSTORE_BASE64.txt, press Ctrl+A then Ctrl+C, and paste it as the secret's value."; exit 1; }
           keytool -list -keystore android/app/release.jks -storetype pkcs12 -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1 || {
             echo "::error::The key decoded, but ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_ALIAS doesn't match. Re-enter them exactly as in the secrets file."; exit 1; }
           echo "Signing key OK"
