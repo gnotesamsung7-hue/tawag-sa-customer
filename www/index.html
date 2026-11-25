@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#E8552D">
+<title>Tawag — Bluetooth Order Pager</title>
+<script src="lib/qrcode.js"></script>
+<script src="lib/jsQR.js" defer></script>
+<style>
+:root{
+  --accent:#E8552D; --accent-ink:#fff; --bg:#FFF7F0; --card:#fff; --ink:#1F1A17; --muted:#7A6F68;
+  --line:#EFE3D9; --good:#1E9E5A; --warn:#E89B00; --bad:#D93A2B; --r:18px;
+  --shadow:0 1px 2px rgba(60,30,10,.06),0 6px 18px rgba(60,30,10,.07);
+  --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.35}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums;font-weight:900;letter-spacing:-.02em}
+.screen{display:none;min-height:100%;flex-direction:column}
+.screen.on{display:flex}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 18px;border-radius:14px;
+  background:var(--accent);color:var(--accent-ink);font-weight:700;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:none;border:1.5px solid var(--line)}
+.btn.soft{background:color-mix(in srgb,var(--accent) 12%,#fff);color:var(--accent);box-shadow:none}
+.btn.good{background:var(--good);color:#fff}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.block{width:100%}
+.btn.big{min-height:60px;font-size:18px;border-radius:18px}
+.btn.sm{min-height:38px;padding:0 12px;font-size:14px;border-radius:11px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:13px;font-weight:600;background:#F3ECE6;color:var(--muted)}
+.pill.good{background:#E3F5EA;color:var(--good)} .pill.bad{background:#FCE6E3;color:var(--bad)} .pill.warn{background:#FFF1D6;color:#9A6400}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.pulse .dot{animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 currentColor}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+label.f{display:block;margin:14px 0 6px;font-weight:700;font-size:14px}
+.input{width:100%;min-height:50px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:#fff;outline:none}
+.input:focus{border-color:var(--accent)}
+textarea.input{min-height:84px;resize:vertical}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:10px 14px;border-radius:99px;border:1.5px solid var(--line);background:#fff;font-weight:600}
+.chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,#fff);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(90px + var(--safe-b));transform:translateX(-50%) translateY(20px);opacity:0;
+  background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-weight:600;z-index:99;transition:.25s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- home ---------- */
+#home{padding:calc(28px + var(--safe-t)) 20px calc(24px + var(--safe-b));gap:14px;
+  background:radial-gradient(120% 60% at 50% 0%,color-mix(in srgb,var(--accent) 18%,var(--bg)) 0%,var(--bg) 60%)}
+.brand{text-align:center;margin:10px 0 16px}
+.brand h1{font-size:44px;margin:8px 0 0;letter-spacing:-.03em;font-weight:900}
+.brand p{margin:4px 0 0;color:var(--muted)}
+.tile{display:flex;gap:14px;align-items:center;text-align:left;width:100%;padding:18px;border-radius:20px;background:#fff;box-shadow:var(--shadow)}
+.tile .ic{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--accent) 14%,#fff);color:var(--accent)}
+.tile b{display:block;font-size:18px}
+.tile span{color:var(--muted);font-size:14px}
+.version{text-align:center;color:var(--muted);font-size:13px;margin-top:auto}
+
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);
+  padding:calc(12px + var(--safe-t)) 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.top h2{margin:0;font-size:19px;line-height:1.1}
+.iconbtn{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#fff;box-shadow:var(--shadow);flex:none}
+
+/* ---------- staff ---------- */
+.content{padding:14px 16px calc(96px + var(--safe-b));display:flex;flex-direction:column;gap:12px}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + var(--safe-b))}
+.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;font-size:12px;font-weight:700;color:var(--muted)}
+.tabs button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,#fff)}
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin:8px 2px 0}
+.sec-h h3{margin:0;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.order{display:flex;gap:12px;align-items:flex-start}
+.order .no{min-width:66px;height:66px;border-radius:16px;display:grid;place-items:center;font-size:30px;background:#F6EEE7}
+.order.ready .no{background:var(--good);color:#fff;animation:readyglow 1.6s infinite}
+@keyframes readyglow{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--good) 25%,transparent)}}
+.order .meta{flex:1;min-width:0}
+.order .who{font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order .items{color:var(--muted);font-size:14px;margin-top:2px;white-space:pre-line;max-height:3.9em;overflow:hidden}
+.order .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.timer{font-weight:800}
+.timer.warn{color:#B77800} .timer.bad{color:var(--bad)}
+.empty{text-align:center;padding:26px 10px;color:var(--muted)}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#fff;border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:28px;font-weight:900;letter-spacing:-.02em}
+.stat span{color:var(--muted);font-size:13px;font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:4px;height:130px;padding-top:8px}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;font-size:10px;color:var(--muted)}
+.bars i{display:block;width:100%;border-radius:6px 6px 2px 2px;background:var(--accent);min-height:2px}
+.bars i.peak{background:var(--ink)}
+.hist{display:grid;grid-template-columns:auto 1fr auto;gap:2px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.hist:last-child{border-bottom:0}
+.hist .n{font-size:22px;font-weight:900;min-width:44px}
+.hist .t{font-size:13px;color:var(--muted)}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.sw{width:42px;height:42px;border-radius:12px;border:3px solid #fff;box-shadow:0 0 0 1.5px var(--line)}
+.sw.on{box-shadow:0 0 0 3px var(--ink)}
+.banner{border-radius:16px;padding:14px;display:flex;gap:12px;align-items:center;background:#FCE6E3;color:#7A1F14;font-weight:600}
+.banner.warn{background:#FFF1D6;color:#6B4600}
+
+/* ---------- sheets / modals ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(20,10,5,.45);z-index:20;display:none;align-items:flex-end;justify-content:center}
+.sheet-bg.on{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 18px calc(20px + var(--safe-b));animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.5}}
+.sheet h3{margin:0 0 4px;font-size:22px}
+.grab{width:44px;height:5px;border-radius:9px;background:#DCCFC5;margin:0 auto 12px}
+.qrbox{background:#fff;border-radius:22px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:var(--shadow)}
+.qrbox svg{width:min(70vw,300px);height:auto;display:block}
+.bigno{font-size:76px;line-height:1;color:var(--accent)}
+
+/* ---------- board ---------- */
+#board{background:#0E0B0A;color:#fff;min-height:100%}
+.board-top{display:flex;align-items:center;gap:12px;padding:calc(16px + var(--safe-t)) 22px 10px}
+.board-top h2{margin:0;font-size:clamp(22px,4vw,40px);font-weight:900}
+.board-sub{color:#FFB79F;font-weight:800;letter-spacing:.2em;text-transform:uppercase;font-size:clamp(14px,2.2vw,22px);padding:0 22px}
+.board-grid{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(120px,22vw,240px),1fr));gap:16px;padding:18px 22px;align-content:start}
+.board-grid .b{aspect-ratio:1.25;border-radius:24px;background:#1E1715;display:grid;place-items:center;font-size:clamp(56px,11vw,130px);color:var(--accent);
+  border:3px solid color-mix(in srgb,var(--accent) 45%,transparent);animation:pop .4s}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.board-empty{grid-column:1/-1;text-align:center;color:#8B7F79;font-size:clamp(18px,3vw,30px);padding:10vh 0}
+.board-foot{display:flex;gap:10px;align-items:center;padding:10px 22px calc(14px + var(--safe-b));color:#8B7F79;font-size:14px}
+.flash{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff}
+.flash.on{display:flex;animation:flashbg .5s steps(1) infinite}
+@keyframes flashbg{0%{background:var(--accent)}50%{background:#0E0B0A}}
+.flash .lbl{font-size:clamp(26px,6vw,64px);font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.flash .fno{font-size:clamp(150px,38vw,420px);line-height:.95;font-weight:900}
+
+/* ---------- customer pager ---------- */
+#pager{background:linear-gradient(180deg,#201815,#0E0B0A);color:#fff;align-items:center;text-align:center;padding:calc(18px + var(--safe-t)) 22px calc(24px + var(--safe-b))}
+.device{width:min(78vw,320px);aspect-ratio:1;border-radius:50%;position:relative;display:grid;place-items:center;margin:26px auto 18px;
+  background:radial-gradient(circle at 50% 35%,#3A2E29,#171210 70%);box-shadow:inset 0 -10px 30px rgba(0,0,0,.6),0 20px 50px rgba(0,0,0,.5)}
+.device .ring{position:absolute;inset:-14px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 60%,transparent);opacity:.25}
+.device.wait .ring{animation:ring 2.4s infinite}
+@keyframes ring{0%{transform:scale(.9);opacity:.5}100%{transform:scale(1.15);opacity:0}}
+.device .pno{font-size:clamp(80px,26vw,130px);color:var(--accent);line-height:1}
+.device .plbl{position:absolute;top:22%;font-size:13px;letter-spacing:.25em;color:#B9AAA2;font-weight:700}
+.leds{display:flex;gap:10px;justify-content:center;margin-top:4px}
+.leds i{width:12px;height:12px;border-radius:50%;background:#3B302B}
+.device.wait + .leds i:nth-child(2){background:var(--accent);animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.2}}
+#pager .status{font-size:20px;font-weight:800;margin-top:8px}
+#pager .hint{color:#B9AAA2;margin-top:6px}
+.calling{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#fff;text-align:center;padding:24px}
+.calling.on{display:flex;animation:flashbg .45s steps(1) infinite}
+.calling .fno{font-size:clamp(130px,45vw,260px);line-height:.9;font-weight:900}
+.scanwrap{position:relative;width:min(86vw,380px);aspect-ratio:1;border-radius:24px;overflow:hidden;background:#000;margin:14px auto}
+.scanwrap video{width:100%;height:100%;object-fit:cover}
+.scanwrap .frame{position:absolute;inset:14%;border:4px solid #fff;border-radius:20px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+#customer{padding:calc(14px + var(--safe-t)) 18px calc(24px + var(--safe-b))}
+</style>
+</head>
+<body>
+
+<!-- ======================= HOME ======================= -->
+<section id="home" class="screen">
+  <div class="brand">
+    <svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true">
+      <rect x="14" y="10" width="56" height="64" rx="18" fill="var(--accent)"/>
+      <rect x="23" y="20" width="38" height="26" rx="8" fill="#fff" opacity=".95"/>
+      <text x="42" y="40" text-anchor="middle" font-size="19" font-weight="900" fill="var(--accent)" font-family="system-ui">12</text>
+      <circle cx="33" cy="58" r="4" fill="#fff"/><circle cx="42" cy="58" r="4" fill="#fff" opacity=".6"/><circle cx="51" cy="58" r="4" fill="#fff" opacity=".35"/>
+      <path d="M74 26c4 4 4 12 0 16M79 21c7 7 7 19 0 26" stroke="var(--accent)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <path d="M10 26c-4 4-4 12 0 16M5 21c-7 7-7 19 0 26" stroke="var(--accent)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    </svg>
+    <h1>Tawag</h1>
+    <p>Bluetooth order pager for restaurants &amp; food stalls</p>
+  </div>
+  <button class="tile" data-go="staff">
+    <div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 10h16v10H4zM7 10V7a5 5 0 0 1 10 0v3"/><path d="M12 14v2"/></svg></div>
+    <div><b>Staff counter</b><span>Take orders, call customers, see wait times</span></div>
+  </button>
+  <button class="tile" data-go="boardSetup">
+    <div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div><b>Now Serving board</b><span>Spare phone or tablet that flashes &amp; announces ready orders</span></div>
+  </button>
+  <button class="tile" data-go="customer">
+    <div class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2M18 14h2v2M14 18v2h2M18 18h2v2"/></svg></div>
+    <div><b>I'm a customer</b><span>Scan your order QR and get buzzed</span></div>
+  </button>
+  <button class="btn ghost" id="shareAppBtn" style="margin-top:6px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM15 15h5v5h-5z"/></svg>
+    Share Tawag (QR)
+  </button>
+  <div class="version" id="homeVersion"></div>
+</section>
+
+<!-- ======================= STAFF SETUP ======================= -->
+<section id="setup" class="screen">
+  <div class="top"><button class="iconbtn" data-go="home" aria-label="Back">←</button><h2>Set up your shop</h2></div>
+  <div class="content">
+    <div class="card">
+      <label class="f" for="setName">Establishment name</label>
+      <input class="input" id="setName" maxlength="40" placeholder="e.g. Lola Nena's Lugawan">
+      <label class="f">Brand color</label>
+      <div class="swatches" id="setColors"></div>
+      <label class="f" for="setTarget">Target prep time (minutes)</label>
+      <input class="input" id="setTarget" type="number" min="1" max="120" value="15">
+      <p class="small muted">Orders waiting longer turn amber, then red.</p>
+    </div>
+    <button class="btn big block" id="setupSave">Start serving</button>
+  </div>
+</section>
+
+<!-- ======================= STAFF ======================= -->
+<section id="staff" class="screen">
+  <div class="top">
+    <button class="iconbtn" data-go="home" aria-label="Home">⌂</button>
+    <div class="grow" style="min-width:0">
+      <h2 id="shopTitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></h2>
+      <div class="small muted">Code <b id="shopCode"></b></div>
+    </div>
+    <span class="pill" id="bcPill"><span class="dot"></span><span id="bcText">Starting…</span></span>
+  </div>
+
+  <!-- Queue -->
+  <div class="content" id="tab-queue">
+    <div id="staffBanner"></div>
+    <div class="row">
+      <button class="btn big grow" id="newOrderBtn">＋ New order</button>
+      <button class="btn big soft" id="counterQrBtn" style="padding:0 16px" aria-label="Counter QR">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM15 15h5v5h-5z"/></svg>
+      </button>
+    </div>
+    <div class="row small muted" id="queueSummary"></div>
+    <div class="sec-h"><h3>Ready · calling</h3><span class="small muted" id="readyCount"></span></div>
+    <div id="readyList"></div>
+    <div class="sec-h"><h3>Preparing</h3><span class="small muted" id="prepCount"></span></div>
+    <div id="prepList"></div>
+  </div>
+
+  <!-- History -->
+  <div class="content hidden" id="tab-history">
+    <div class="row">
+      <button class="iconbtn" id="histPrev">‹</button>
+      <div class="grow" style="text-align:center"><b id="histDay"></b></div>
+      <button class="iconbtn" id="histNext">›</button>
+    </div>
+    <input class="input" id="histSearch" placeholder="Search name, order # or items">
+    <div class="card" id="histList" style="padding:4px 16px"></div>
+    <button class="btn ghost block" id="exportDayBtn">Export this day (CSV)</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="content hidden" id="tab-stats">
+    <div class="row">
+      <button class="iconbtn" id="statPrev">‹</button>
+      <div class="grow" style="text-align:center"><b id="statDay"></b></div>
+      <button class="iconbtn" id="statNext">›</button>
+    </div>
+    <div class="statgrid" id="statGrid"></div>
+    <div class="card">
+      <div class="row"><b class="grow">Orders by hour</b><span class="small muted" id="peakTxt"></span></div>
+      <div class="bars" id="hourBars"></div>
+    </div>
+    <div class="card">
+      <b>Last 7 days</b>
+      <div class="bars" id="weekBars"></div>
+      <div class="small muted" id="weekTxt"></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="content hidden" id="tab-settings">
+    <div class="card">
+      <label class="f" for="stName">Establishment name</label>
+      <input class="input" id="stName" maxlength="40">
+      <label class="f">Brand color</label>
+      <div class="swatches" id="stColors"></div>
+      <label class="f" for="stTarget">Target prep time (minutes)</label>
+      <input class="input" id="stTarget" type="number" min="1" max="120">
+      <label class="f" for="stMax">Highest queue number</label>
+      <input class="input" id="stMax" type="number" min="10" max="99">
+      <label class="row" style="margin-top:14px"><input type="checkbox" id="stReset" style="width:22px;height:22px"> <span>Start from #1 every day</span></label>
+      <label class="row" style="margin-top:10px"><input type="checkbox" id="stAwake" style="width:22px;height:22px"> <span>Keep this screen on</span></label>
+      <button class="btn block" id="stSave" style="margin-top:16px">Save</button>
+    </div>
+    <div class="card">
+      <b>Restaurant code: <span id="stCode" class="num"></span></b>
+      <p class="small muted" style="margin:4px 0 10px">Pagers and boards only listen to this code, so shops next to each other never mix up orders.</p>
+      <button class="btn ghost sm" id="stNewCode">Make a new code</button>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <b>Print &amp; share</b>
+      <button class="btn soft block" id="cardBtn">Counter QR stand card (image)</button>
+      <button class="btn soft block" id="boardPairBtn">Set up a Now Serving board</button>
+      <button class="btn soft block" id="shareAppBtn2">Share Tawag app (QR)</button>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <b>Data</b>
+      <button class="btn ghost block" id="exportAllBtn">Export all history (CSV)</button>
+      <button class="btn ghost block" id="clearBtn" style="color:var(--bad)">Clear all history</button>
+      <p class="small muted" style="margin:0">History is kept on this phone for 90 days.</p>
+    </div>
+    <p class="version" id="staffVersion"></p>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="queue" class="on"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Queue</button>
+    <button data-tab="history"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>History</button>
+    <button data-tab="stats"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Stats</button>
+    <button data-tab="settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+  </nav>
+</section>
+
+<!-- ======================= BOARD SETUP ======================= -->
+<section id="boardSetup" class="screen">
+  <div class="top"><button class="iconbtn" data-go="home" aria-label="Back">←</button><h2>Now Serving board</h2></div>
+  <div class="content">
+    <div class="card">
+      <p style="margin-top:0">Put a spare phone or tablet where customers can see it. It flashes each ready order and says the number out loud.</p>
+      <p class="small muted">On the staff phone, open <b>Settings → Set up a Now Serving board</b> and scan the QR shown there.</p>
+      <button class="btn block" id="boardScanBtn">Scan the board QR</button>
+      <label class="f" for="bdCode">…or type the restaurant code</label>
+      <input class="input" id="bdCode" inputmode="numeric" maxlength="4" placeholder="4-digit code">
+      <label class="f" for="bdName">Name to show on the board</label>
+      <input class="input" id="bdName" maxlength="40" placeholder="Establishment name">
+      <label class="row" style="margin-top:14px"><input type="checkbox" id="bdVoice" checked style="width:22px;height:22px"> <span>Say the order number out loud</span></label>
+    </div>
+    <button class="btn big block" id="boardStartBtn">Start board</button>
+  </div>
+</section>
+
+<!-- ======================= BOARD ======================= -->
+<section id="board" class="screen">
+  <div class="board-top">
+    <h2 id="boardName" class="grow"></h2>
+    <span class="pill" id="boardPill" style="background:#231B18;color:#B9AAA2"><span class="dot"></span><span id="boardSig">Searching…</span></span>
+  </div>
+  <div class="board-sub">Now serving · please pick up</div>
+  <div class="board-grid" id="boardGrid"></div>
+  <div class="board-foot">
+    <span class="grow" id="boardFoot"></span>
+    <button class="btn sm dark" id="boardTest" style="background:#231B18">Test sound</button>
+    <button class="btn sm dark" id="boardExit" style="background:#231B18">Exit</button>
+  </div>
+</section>
+<div class="flash" id="boardFlash"><div class="lbl">Order ready</div><div class="fno num" id="boardFlashNo"></div><div class="lbl" style="font-size:clamp(18px,3.5vw,36px)">please pick up</div></div>
+
+<!-- ======================= CUSTOMER (scan) ======================= -->
+<section id="customer" class="screen">
+  <div class="row"><button class="iconbtn" data-go="home" aria-label="Back">←</button><h2 style="margin:0">Get buzzed</h2></div>
+  <p class="muted">Scan the QR the cashier shows you. Your phone becomes the pager.</p>
+  <div class="scanwrap hidden" id="scanWrap"><video id="scanVideo" playsinline muted></video><div class="frame"></div></div>
+  <button class="btn big block" id="custScanBtn">Scan order QR</button>
+  <details style="margin-top:16px">
+    <summary class="muted" style="font-weight:700">No camera? Type it in</summary>
+    <label class="f" for="cuCode">Restaurant code</label>
+    <input class="input" id="cuCode" inputmode="numeric" maxlength="4">
+    <label class="f" for="cuNo">Your order number</label>
+    <input class="input" id="cuNo" inputmode="numeric" maxlength="2">
+    <button class="btn block" id="cuGo" style="margin-top:14px">Start my pager</button>
+  </details>
+</section>
+
+<!-- ======================= PAGER ======================= -->
+<section id="pager" class="screen">
+  <div class="small" style="letter-spacing:.2em;color:#B9AAA2;font-weight:700">TAWAG PAGER</div>
+  <div style="font-size:22px;font-weight:900;margin-top:4px" id="pgShop"></div>
+  <div class="device wait" id="pgDevice"><div class="ring"></div><div class="plbl">ORDER</div><div class="pno num" id="pgNo"></div></div>
+  <div class="leds"><i></i><i></i><i></i></div>
+  <div class="status" id="pgStatus">Waiting for your order…</div>
+  <div class="hint" id="pgHint">You can lock your phone. It will buzz, beep and flash when your order is ready.</div>
+  <div style="margin-top:auto;width:100%;display:flex;flex-direction:column;gap:10px;padding-top:20px">
+    <span class="pill" id="pgSig" style="align-self:center;background:#231B18;color:#B9AAA2"><span class="dot"></span><span>Looking for the counter…</span></span>
+    <button class="btn ghost block" id="pgLeave" style="color:#fff;border-color:#3B302B">Leave queue</button>
+  </div>
+</section>
+<div class="calling" id="pgCalling">
+  <div style="font-size:28px;font-weight:900;letter-spacing:.08em">YOUR ORDER IS READY</div>
+  <div class="fno num" id="pgCallNo"></div>
+  <div style="font-size:18px;font-weight:700">Please pick it up at the counter</div>
+  <button class="btn big" id="pgAck" style="background:#fff;color:#111;margin-top:18px;padding:0 34px">I'm coming 👋</button>
+</div>
+
+<!-- ======================= SHEETS ======================= -->
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const APP_VERSION = '1.0.0';
+const REPO_OWNER = 'gnotesamsung7-hue', REPO = 'tawag';
+const APK_URL = `https://github.com/${REPO_OWNER}/${REPO}/releases/latest/download/Tawag.apk`;
+const PAGE_URL = `https://${REPO_OWNER}.github.io/${REPO}/`;
+const COLORS = ['#E8552D', '#F2A100', '#1E9E5A', '#1F7AE0', '#7B4DD8', '#D63F7A', '#2B2420'];
+const MAX_CALLS = 18;
+const KEEP_DAYS = 90;
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const dayKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const clock = t => t ? new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
+const mins = ms => ms == null ? null : ms / 60000;
+const fmtMin = m => m == null || isNaN(m) ? '—' : m < 1 ? `${Math.round(m * 60)}s` : m < 60 ? `${m.toFixed(m < 10 ? 1 : 0)}m` : `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
+const fmtTimer = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s >= 3600 ? `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; };
+
+/* ======================= Bluetooth bridge ======================= */
+const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+// Browser demo channel: BroadcastChannel between tabs, or relayed through the parent page when inside demo frames.
+function simChannel(name) {
+  const framed = window.parent !== window;
+  let bc = null;
+  if (!framed) { try { bc = new BroadcastChannel(name); } catch (e) { bc = null; } }
+  const fns = [];
+  if (bc) bc.addEventListener('message', e => fns.forEach(f => f(e.data)));
+  if (framed) window.addEventListener('message', e => { const d = e.data; if (d && d.__tawag === name) fns.forEach(f => f(d.msg)); });
+  return {
+    postMessage(msg) { if (bc) bc.postMessage(msg); if (framed) window.parent.postMessage({ __tawag: name, msg }, '*'); },
+    addEventListener(_t, f) { fns.push(e => f({ data: e })); }
+  };
+}
+
+// In a normal browser (demo / testing) we simulate Bluetooth between devices.
+const SimBle = (() => {
+  const ch = simChannel('tawag-sim');
+  const L = { state: [], join: [] };
+  let st = { mode: 'idle', status: 'idle', venue: 0, number: 0, calls: [], nudges: [], inRange: false, error: '', web: [] };
+  let advTimer = null, adv = null, lastSeen = 0, ackN = -1, curN = -1;
+  const emit = () => L.state.forEach(f => f({ ...st }));
+  function onPacket(calls) {
+    lastSeen = Date.now();
+    if (st.status === 'done') return;
+    const wasIn = st.inRange; st.inRange = true;
+    if (st.number === 0) { st.calls = calls.map(c => c.n); st.nudges = calls.map(c => c.nudge); emit(); return; }
+    const c = calls.find(c => c.n === st.number);
+    let changed = !wasIn;
+    if (c) {
+      curN = c.nudge;
+      if (st.status === 'waiting' || (st.status === 'coming' && c.nudge !== ackN)) { st.status = 'calling'; changed = true; }
+    } else if (st.status === 'calling' || st.status === 'coming') { st.status = 'done'; changed = true; }
+    if (changed) emit();
+  }
+  ch && ch.addEventListener('message', e => {
+    const m = e.data;
+    if (m && m.t === 'adv' && st.mode === 'listen' && m.venue === st.venue) onPacket(m.calls);
+  });
+  setInterval(() => {
+    if (st.mode === 'listen' && st.status !== 'done') { const r = Date.now() - lastSeen < 5000; if (r !== st.inRange) { st.inRange = r; emit(); } }
+  }, 1000);
+  return {
+    async ensurePermissions() { return { granted: true }; },
+    async getStatus() { return { supported: true, bluetoothOn: true, locationOff: false, permissions: true, state: { ...st } }; },
+    async getState() { return { ...st }; },
+    async transmit({ venue, calls }) {
+      st = { ...st, mode: 'transmit', status: 'on', venue, calls: calls.map(c => c.n), nudges: calls.map(c => c.nudge), error: '' };
+      adv = { t: 'adv', venue, calls };
+      clearInterval(advTimer);
+      const send = () => ch && ch.postMessage(adv);
+      send(); advTimer = setInterval(send, 1000);
+      emit();
+    },
+    async listen({ venue, number }) {
+      clearInterval(advTimer);
+      st = { ...st, mode: 'listen', status: number ? 'waiting' : 'board', venue, number, calls: [], nudges: [], inRange: false };
+      lastSeen = 0; ackN = -1; emit();
+    },
+    async ack() { if (st.status === 'calling') { ackN = curN; st.status = 'coming'; emit(); } },
+    async stop() { clearInterval(advTimer); st = { ...st, mode: 'idle', status: 'idle' }; emit(); },
+    async assign() {},
+    async speak({ text }) { try { speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch (e) {} },
+    async keepAwake() {},
+    async openBluetoothSettings() {},
+    addListener(ev, f) { (L[ev] || (L[ev] = [])).push(f); return { remove() {} }; }
+  };
+})();
+
+const Ble = isNative ? window.Capacitor.Plugins.TawagBle : SimBle;
+const NativeApp = isNative ? window.Capacitor.Plugins.App : null;
+
+/* ======================= storage ======================= */
+const DB_KEY = 'tawag.v1';
+const db = (() => {
+  let d;
+  try { d = JSON.parse(localStorage.getItem(DB_KEY) || 'null'); } catch (e) { d = null; }
+  d = d || {};
+  d.settings = Object.assign({ name: '', color: COLORS[0], target: 15, venue: 0, maxNum: 99, resetDaily: true, awake: true }, d.settings || {});
+  d.orders = d.orders || [];
+  d.lastNum = d.lastNum || 0;
+  d.lastDay = d.lastDay || '';
+  d.board = Object.assign({ venue: 0, name: '', voice: true }, d.board || {});
+  d.pager = d.pager || null; // {venue, number, name}
+  if (!d.settings.venue) d.settings.venue = 1000 + Math.floor(Math.random() * 9000);
+  return d;
+})();
+function save() {
+  const cutoff = Date.now() - KEEP_DAYS * 864e5;
+  db.orders = db.orders.filter(o => o.status === 'prep' || o.status === 'ready' || o.created > cutoff);
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) { toast('Storage full: export and clear old history'); }
+}
+
+function applyAccent(c) {
+  document.documentElement.style.setProperty('--accent', c);
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = c;
+}
+applyAccent(db.settings.color);
+
+/* ======================= UI helpers ======================= */
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2600);
+}
+function openSheet(html) {
+  $('#sheet').innerHTML = '<div class="grab"></div>' + html;
+  $('#sheetBg').classList.add('on');
+}
+function askConfirm(msg, okLabel, danger) {
+  return new Promise(res => {
+    openSheet(`<h3 style="margin-bottom:10px">${esc(msg)}</h3>
+      <div class="row" style="margin-top:18px"><button class="btn ghost grow" id="cfNo">Back</button>
+      <button class="btn grow" id="cfYes" style="${danger ? 'background:var(--bad)' : ''}">${esc(okLabel || 'OK')}</button></div>`);
+    $('#cfNo').onclick = () => { closeSheet(); res(false); };
+    $('#cfYes').onclick = () => { closeSheet(); res(true); };
+  });
+}
+function closeSheet() { $('#sheetBg').classList.remove('on'); stopScan(); }
+$('#sheetBg').addEventListener('click', e => { if (e.target.id === 'sheetBg') closeSheet(); });
+
+function qrSvg(text) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  return q.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+}
+
+let current = 'home';
+function go(id) {
+  if (current === 'staff' && id !== 'staff') leaveStaff();
+  if (current === 'board' && id !== 'board') leaveBoard();
+  if (current === 'customer' && id !== 'customer') stopScan();
+  $$('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  current = id;
+  window.scrollTo(0, 0);
+  if (id === 'staff') enterStaff();
+  if (id === 'boardSetup') { $('#bdCode').value = db.board.venue || ''; $('#bdName').value = db.board.name || ''; $('#bdVoice').checked = db.board.voice; }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-go]');
+  if (!b) return;
+  const to = b.dataset.go;
+  if (to === 'staff' && !db.settings.name) return go('setup');
+  go(to);
+});
+
+$('#homeVersion').textContent = `Tawag v${APP_VERSION}`;
+$('#staffVersion').textContent = `Tawag v${APP_VERSION}`;
+
+function swatches(el, selected, onPick) {
+  el.innerHTML = COLORS.map(c => `<button class="sw${c === selected ? ' on' : ''}" style="background:${c}" data-c="${c}" aria-label="color ${c}"></button>`).join('');
+  el.onclick = e => { const b = e.target.closest('.sw'); if (!b) return; $$('#' + el.id + ' .sw').forEach(x => x.classList.toggle('on', x === b)); onPick(b.dataset.c); };
+}
+
+/* ======================= permissions / bluetooth readiness ======================= */
+async function ensureBluetooth() {
+  try {
+    const p = await Ble.ensurePermissions();
+    if (!p.granted) return { ok: false, why: 'perm' };
+    const s = await Ble.getStatus();
+    if (!s.supported) return { ok: false, why: 'unsupported' };
+    if (!s.bluetoothOn) return { ok: false, why: 'off' };
+    if (s.locationOff) return { ok: false, why: 'location' };
+    return { ok: true };
+  } catch (e) { return { ok: false, why: 'error', msg: e.message }; }
+}
+function btProblemHtml(why) {
+  const msg = {
+    perm: 'Tawag needs the <b>Nearby devices</b> (Bluetooth) and <b>Notifications</b> permission.',
+    off: 'Bluetooth is off.',
+    location: 'Turn on <b>Location</b> — older Android phones need it to use Bluetooth.',
+    unsupported: 'This phone has no Bluetooth Low Energy.',
+    error: 'Bluetooth could not start.'
+  }[why] || 'Bluetooth problem.';
+  const btn = why === 'off' ? `<button class="btn sm dark" onclick="Ble.openBluetoothSettings()">Turn on</button>`
+    : why === 'perm' ? `<button class="btn sm dark" onclick="retryBluetooth()">Allow</button>` : '';
+  return `<div class="banner"><div class="grow">${msg}</div>${btn}</div>`;
+}
+
+/* ======================= SETUP ======================= */
+let setupColor = db.settings.color;
+swatches($('#setColors'), setupColor, c => { setupColor = c; applyAccent(c); });
+$('#setupSave').onclick = () => {
+  const name = $('#setName').value.trim();
+  if (!name) { toast('Type your establishment name'); $('#setName').focus(); return; }
+  db.settings.name = name;
+  db.settings.color = setupColor;
+  db.settings.target = Math.max(1, Math.min(120, +$('#setTarget').value || 15));
+  save(); go('staff');
+};
+
+/* ======================= STAFF ======================= */
+let staffTab = 'queue', staffTimer = null, bleState = {}, histDay = dayKey(), statDay = dayKey();
+const active = () => db.orders.filter(o => o.status === 'prep' || o.status === 'ready');
+
+function counterUrl() { return `${PAGE_URL}?r=${db.settings.venue}&s=${encodeURIComponent(db.settings.name)}`; }
+function orderUrl(n) { return `${PAGE_URL}?r=${db.settings.venue}&n=${n}&s=${encodeURIComponent(db.settings.name)}`; }
+function boardUrl() { return `${PAGE_URL}?r=${db.settings.venue}&s=${encodeURIComponent(db.settings.name)}&board=1`; }
+
+function rollDay() {
+  const today = dayKey();
+  if (db.lastDay !== today) { if (db.settings.resetDaily) db.lastNum = 0; db.lastDay = today; save(); }
+}
+function nextNumber() {
+  rollDay();
+  const used = new Set(active().map(o => o.n));
+  let n = db.lastNum;
+  for (let i = 0; i < db.settings.maxNum; i++) {
+    n = n >= db.settings.maxNum ? 1 : n + 1;
+    if (!used.has(n)) return n;
+  }
+  return null;
+}
+
+async function enterStaff() {
+  $('#shopTitle').textContent = db.settings.name;
+  $('#shopCode').textContent = db.settings.venue;
+  showTab(staffTab);
+  if (db.settings.awake) Ble.keepAwake({ on: true });
+  await startBroadcast();
+  clearInterval(staffTimer);
+  staffTimer = setInterval(tickTimers, 1000);
+}
+function leaveStaff() {
+  clearInterval(staffTimer);
+  Ble.keepAwake({ on: false });
+  Ble.stop();
+}
+async function retryBluetooth() { if (current === 'staff') await startBroadcast(); else if (current === 'pager') resumePager(); }
+
+async function startBroadcast() {
+  const r = await ensureBluetooth();
+  $('#staffBanner').innerHTML = r.ok ? '' : btProblemHtml(r.why);
+  if (!r.ok) { setPill('bad', 'Bluetooth off'); return; }
+  await broadcast();
+}
+function readyCalls() {
+  return active().filter(o => o.status === 'ready').sort((a, b) => a.readyAt - b.readyAt).slice(0, MAX_CALLS).map(o => ({ n: o.n, nudge: o.nudge || 0 }));
+}
+async function broadcast() {
+  if (current !== 'staff') return;
+  try {
+    await Ble.transmit({ venue: db.settings.venue, name: db.settings.name, calls: readyCalls() });
+  } catch (e) { setPill('bad', 'Bluetooth error'); }
+}
+function setPill(kind, text) {
+  const p = $('#bcPill'); p.className = 'pill ' + kind + (kind === 'good' ? ' pulse' : '');
+  $('#bcText').textContent = text;
+}
+
+Ble.addListener('state', s => {
+  bleState = s;
+  if (current === 'staff') {
+    if (s.mode === 'transmit' && s.status === 'on') setPill('good', 'Broadcasting');
+    else if (s.status === 'error') { setPill('bad', s.error === 'bluetooth_off' ? 'Bluetooth off' : 'Bluetooth error'); if (s.error === 'bluetooth_off') $('#staffBanner').innerHTML = btProblemHtml('off'); }
+    renderQueue();
+  } else if (current === 'pager') onPagerState(s);
+  else if (current === 'board') onBoardState(s);
+});
+
+Ble.addListener('join', ({ device }) => {
+  // A web customer scanned the counter QR and asks for a number.
+  if (current !== 'staff') return;
+  const n = nextNumber();
+  if (n == null) { toast('Queue is full'); return; }
+  db.lastNum = n;
+  const o = { id: Date.now() + '' + n, n, name: '', items: '', type: 'Dine-in', src: 'self', created: Date.now(), status: 'prep', day: dayKey() };
+  db.orders.push(o); save();
+  Ble.assign({ device, number: n });
+  renderQueue(); chime(); toast(`New customer joined: #${n}`);
+});
+
+function showTab(t) {
+  staffTab = t;
+  $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  ['queue', 'history', 'stats', 'settings'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  window.scrollTo(0, 0);
+  if (t === 'queue') renderQueue();
+  if (t === 'history') renderHistory();
+  if (t === 'stats') renderStats();
+  if (t === 'settings') renderSettings();
+}
+$$('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+function timerClass(ms) {
+  const m = ms / 60000, t = db.settings.target;
+  return m >= t * 1.5 ? 'bad' : m >= t ? 'warn' : '';
+}
+function renderQueue() {
+  if (current !== 'staff' || staffTab !== 'queue') return;
+  const a = active();
+  const ready = a.filter(o => o.status === 'ready').sort((x, y) => x.readyAt - y.readyAt);
+  const prep = a.filter(o => o.status === 'prep').sort((x, y) => x.created - y.created);
+  const web = new Set(bleState.web || []);
+  const card = (o) => {
+    const isReady = o.status === 'ready';
+    const since = isReady ? o.readyAt : o.created;
+    const conn = web.has(o.n) ? `<span class="pill good" title="Customer's phone is connected">📶 connected</span>` : '';
+    const label = o.name ? esc(o.name) : (o.src === 'self' ? 'Scanned counter QR' : 'Walk-in');
+    return `<div class="card order ${isReady ? 'ready' : ''}" data-id="${o.id}">
+      <div class="no num">${o.n}</div>
+      <div class="meta">
+        <div class="row" style="gap:8px"><div class="who grow">${label}</div><span class="pill">${esc(o.type || '')}</span></div>
+        ${o.items ? `<div class="items">${esc(o.items)}</div>` : ''}
+        <div class="row small" style="margin-top:6px;gap:8px;flex-wrap:wrap">
+          <span class="muted">${isReady ? 'Called' : 'Waiting'}</span>
+          <span class="timer ${isReady ? '' : timerClass(Date.now() - since)}" data-since="${since}" data-kind="${isReady ? 'ready' : 'prep'}">${fmtTimer(Date.now() - since)}</span>
+          <span class="muted">· ordered ${clock(o.created)}</span> ${conn}
+        </div>
+        <div class="acts">
+          ${isReady
+            ? `<button class="btn sm good" data-act="done">Picked up ✓</button>
+               <button class="btn sm soft" data-act="nudge">Buzz again</button>
+               <button class="btn sm ghost" data-act="noshow">No-show</button>`
+            : `<button class="btn sm" data-act="ready">Ready 🔔</button>
+               <button class="btn sm soft" data-act="qr">QR</button>
+               <button class="btn sm ghost" data-act="edit">Edit</button>`}
+        </div>
+      </div></div>`;
+  };
+  $('#readyList').innerHTML = ready.length ? ready.map(card).join('') : `<div class="empty">No orders being called</div>`;
+  $('#prepList').innerHTML = prep.length ? prep.map(card).join('') : `<div class="empty">No orders yet. Tap <b>＋ New order</b>.</div>`;
+  $('#readyCount').textContent = ready.length ? `${ready.length}${ready.length > MAX_CALLS ? ` (only ${MAX_CALLS} buzz at once)` : ''}` : '';
+  $('#prepCount').textContent = prep.length || '';
+  const today = db.orders.filter(o => o.day === dayKey() && o.status === 'done');
+  const avg = today.length ? today.reduce((s, o) => s + (o.readyAt - o.created), 0) / today.length : null;
+  $('#queueSummary').innerHTML = `<span>Served today: <b>${today.length}</b></span><span>·</span><span>Avg prep: <b>${fmtMin(mins(avg))}</b></span><span>·</span><span>Next: <b>#${nextNumber() ?? '—'}</b></span>`;
+}
+function tickTimers() {
+  $$('.timer[data-since]').forEach(t => {
+    const ms = Date.now() - +t.dataset.since;
+    t.textContent = fmtTimer(ms);
+    if (t.dataset.kind === 'prep') t.className = 'timer ' + timerClass(ms);
+  });
+}
+
+function orderById(id) { return db.orders.find(o => o.id === id); }
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const card = b.closest('[data-id]'); const o = card && orderById(card.dataset.id); if (!o) return;
+  const act = b.dataset.act;
+  if (act === 'ready') { o.status = 'ready'; o.readyAt = Date.now(); o.nudge = 0; save(); broadcast(); renderQueue(); toast(`Calling #${o.n}`); }
+  if (act === 'nudge') { o.nudge = o.nudge ? 0 : 1; o.nudges = (o.nudges || 0) + 1; save(); broadcast(); toast(`Buzzing #${o.n} again`); }
+  if (act === 'done') { o.status = 'done'; o.doneAt = Date.now(); save(); broadcast(); renderQueue(); }
+  if (act === 'noshow') { if (!(await askConfirm(`Mark #${o.n} as no-show?`, 'No-show', true))) return; o.status = 'noshow'; o.doneAt = Date.now(); save(); broadcast(); renderQueue(); }
+  if (act === 'qr') showOrderQr(o);
+  if (act === 'edit') orderSheet(o);
+});
+
+function orderSheet(o) {
+  const isNew = !o;
+  const n = isNew ? nextNumber() : o.n;
+  if (n == null) { toast('All numbers are in use'); return; }
+  const type = o ? o.type : 'Dine-in';
+  openSheet(`
+    <h3>${isNew ? 'New order' : 'Edit order #' + o.n}</h3>
+    <label class="f" for="foN">Queue number</label>
+    <input class="input num" id="foN" type="number" min="1" max="${db.settings.maxNum}" value="${n}" style="font-size:26px">
+    <label class="f" for="foName">Customer name <span class="muted">(optional)</span></label>
+    <input class="input" id="foName" maxlength="40" value="${esc(o ? o.name : '')}" placeholder="e.g. Juan">
+    <label class="f" for="foItems">Order <span class="muted">(optional)</span></label>
+    <textarea class="input" id="foItems" maxlength="400" placeholder="e.g. 2 Tapsilog, 1 Iced tea">${esc(o ? o.items : '')}</textarea>
+    <label class="f">Type</label>
+    <div class="chips" id="foType">${['Dine-in', 'Take-out', 'Delivery'].map(t => `<button class="chip${t === type ? ' on' : ''}">${t}</button>`).join('')}</div>
+    <div class="row" style="margin-top:18px">
+      ${isNew ? '' : `<button class="btn ghost" id="foCancel" style="color:var(--bad)">Cancel order</button>`}
+      <button class="btn big grow" id="foSave">${isNew ? 'Save & show QR' : 'Save'}</button>
+    </div>`);
+  $('#foType').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; $$('#foType .chip').forEach(x => x.classList.toggle('on', x === c)); };
+  if (!isNew) $('#foCancel').onclick = async () => { if (!(await askConfirm(`Cancel order #${o.n}?`, 'Cancel order', true))) return orderSheet(o); o.status = 'cancelled'; o.doneAt = Date.now(); save(); broadcast(); renderQueue(); };
+  $('#foSave').onclick = () => {
+    const num = Math.round(+$('#foN').value);
+    if (!(num >= 1 && num <= db.settings.maxNum)) { toast(`Number must be 1–${db.settings.maxNum}`); return; }
+    if (active().some(x => x.n === num && x !== o)) { toast(`#${num} is already in the queue`); return; }
+    const data = { n: num, name: $('#foName').value.trim(), items: $('#foItems').value.trim(), type: $('#foType .chip.on').textContent };
+    if (isNew) {
+      rollDay();
+      const rec = Object.assign({ id: Date.now() + '' + num, src: 'staff', created: Date.now(), status: 'prep', day: dayKey() }, data);
+      db.orders.push(rec); db.lastNum = num; save(); renderQueue(); showOrderQr(rec);
+    } else {
+      const changed = o.n !== num; Object.assign(o, data); save(); closeSheet(); renderQueue(); if (changed) broadcast();
+    }
+  };
+}
+$('#newOrderBtn').onclick = () => orderSheet(null);
+
+function showOrderQr(o) {
+  openSheet(`
+    <div style="text-align:center">
+      <div class="muted" style="font-weight:700">${esc(db.settings.name)}</div>
+      <div class="bigno num">#${o.n}</div>
+      ${o.name ? `<div style="font-weight:800;font-size:18px">${esc(o.name)}</div>` : ''}
+    </div>
+    <div class="qrbox" style="margin-top:12px">${qrSvg(orderUrl(o.n))}
+      <b>Scan with your phone camera</b>
+      <span class="small muted" style="text-align:center">Turn on Bluetooth, tap <b>Turn on my buzzer</b>, keep the page open. We'll buzz you when it's ready.</span>
+    </div>
+    ${isNative ? '' : `<button class="btn soft block" style="margin-top:12px" onclick="demoScan(${o.n})">Demo: customer scans this</button>`}
+    <button class="btn big block" style="margin-top:14px" onclick="closeSheet()">Done</button>`);
+}
+// Browser demo only: pretend the customer phone (another tab / demo frame) scanned the QR.
+const demoCh = !isNative ? simChannel('tawag-demo') : null;
+function demoScan(n) { demoCh && demoCh.postMessage({ r: db.settings.venue, n, s: db.settings.name }); closeSheet(); toast(`Customer phone is now pager #${n}`); }
+demoCh && demoCh.addEventListener('message', e => { if (current === 'customer' || current === 'home') startPager(e.data.r, e.data.n, e.data.s); });
+$('#counterQrBtn').onclick = () => {
+  openSheet(`
+    <h3>Counter QR</h3>
+    <p class="muted" style="margin-top:0">Customers scan this to get the next queue number on their own phone. Add their order details here afterwards.</p>
+    <div class="qrbox">${qrSvg(counterUrl())}<b>${esc(db.settings.name)}</b><span class="small muted">Scan · get a number · get buzzed</span></div>
+    <button class="btn soft block" style="margin-top:12px" onclick="makeStandCard()">Print as a stand card</button>
+    <button class="btn big block" style="margin-top:10px" onclick="closeSheet()">Close</button>`);
+};
+
+/* ----- history ----- */
+function shiftDay(k, d) { const t = new Date(k + 'T12:00:00'); t.setDate(t.getDate() + d); return dayKey(t.getTime()); }
+function dayLabel(k) { return k === dayKey() ? 'Today' : k === shiftDay(dayKey(), -1) ? 'Yesterday' : new Date(k + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }); }
+$('#histPrev').onclick = () => { histDay = shiftDay(histDay, -1); renderHistory(); };
+$('#histNext').onclick = () => { if (histDay < dayKey()) { histDay = shiftDay(histDay, 1); renderHistory(); } };
+$('#histSearch').oninput = () => renderHistory();
+function renderHistory() {
+  $('#histDay').textContent = dayLabel(histDay);
+  const q = $('#histSearch').value.trim().toLowerCase();
+  const list = db.orders.filter(o => o.day === histDay && !['prep', 'ready'].includes(o.status))
+    .filter(o => !q || String(o.n) === q || (o.name || '').toLowerCase().includes(q) || (o.items || '').toLowerCase().includes(q))
+    .sort((a, b) => b.created - a.created);
+  const badge = { done: '<span class="pill good">Picked up</span>', noshow: '<span class="pill bad">No-show</span>', cancelled: '<span class="pill">Cancelled</span>' };
+  $('#histList').innerHTML = list.length ? list.map(o => {
+    const prep = o.readyAt ? mins(o.readyAt - o.created) : null;
+    const pick = o.readyAt && o.status === 'done' ? mins(o.doneAt - o.readyAt) : null;
+    const total = o.status === 'done' ? mins(o.doneAt - o.created) : null;
+    return `<div class="hist">
+      <div class="n num">#${o.n}</div>
+      <div style="min-width:0"><b>${esc(o.name || (o.src === 'self' ? 'Counter QR' : 'Walk-in'))}</b> <span class="small muted">· ${esc(o.type || '')}</span>
+        ${o.items ? `<div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.items)}</div>` : ''}
+        <div class="t">Ordered ${clock(o.created)} · Ready ${clock(o.readyAt)} · Out ${clock(o.doneAt)}</div>
+        <div class="t">Prep <b>${fmtMin(prep)}</b> · Pickup <b>${fmtMin(pick)}</b> · Total <b>${fmtMin(total)}</b>${o.nudges ? ` · buzzed ${o.nudges + 1}×` : ''}</div>
+      </div>
+      <div>${badge[o.status] || ''}</div></div>`;
+  }).join('') : `<div class="empty">No finished orders ${histDay === dayKey() ? 'yet today' : 'on this day'}</div>`;
+}
+
+/* ----- stats ----- */
+$('#statPrev').onclick = () => { statDay = shiftDay(statDay, -1); renderStats(); };
+$('#statNext').onclick = () => { if (statDay < dayKey()) { statDay = shiftDay(statDay, 1); renderStats(); } };
+function dayStats(k) {
+  const all = db.orders.filter(o => o.day === k);
+  const done = all.filter(o => o.status === 'done');
+  const avg = arr => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : null;
+  const prep = done.filter(o => o.readyAt).map(o => mins(o.readyAt - o.created));
+  const pick = done.filter(o => o.readyAt).map(o => mins(o.doneAt - o.readyAt));
+  const total = done.map(o => mins(o.doneAt - o.created));
+  return {
+    orders: all.filter(o => o.status !== 'cancelled').length, served: done.length,
+    noshow: all.filter(o => o.status === 'noshow').length,
+    avgPrep: avg(prep), avgPick: avg(pick), avgTotal: avg(total), maxTotal: total.length ? Math.max(...total) : null,
+    onTarget: prep.length ? Math.round(100 * prep.filter(m => m <= db.settings.target).length / prep.length) : null,
+    selfJoin: all.filter(o => o.src === 'self').length, all
+  };
+}
+function renderStats() {
+  $('#statDay').textContent = dayLabel(statDay);
+  const s = dayStats(statDay);
+  const tile = (v, l) => `<div class="stat"><b class="num">${v}</b><span>${l}</span></div>`;
+  $('#statGrid').innerHTML = [
+    tile(s.orders, 'Orders'), tile(s.served, 'Picked up'),
+    tile(fmtMin(s.avgPrep), 'Avg prep time'), tile(fmtMin(s.avgTotal), 'Avg total wait'),
+    tile(fmtMin(s.avgPick), 'Avg pickup delay'), tile(fmtMin(s.maxTotal), 'Longest wait'),
+    tile(s.onTarget == null ? '—' : s.onTarget + '%', `Ready within ${db.settings.target}m`), tile(s.noshow, 'No-shows')
+  ].join('');
+  const hours = {}; s.all.filter(o => o.status !== 'cancelled').forEach(o => { const h = new Date(o.created).getHours(); hours[h] = (hours[h] || 0) + 1; });
+  const hs = Object.keys(hours).map(Number);
+  if (!hs.length) { $('#hourBars').innerHTML = `<div class="empty" style="width:100%">No orders</div>`; $('#peakTxt').textContent = ''; }
+  else {
+    const lo = Math.min(...hs), hi = Math.max(...hs), max = Math.max(...Object.values(hours));
+    const peak = hs.find(h => hours[h] === max);
+    let html = '';
+    for (let h = lo; h <= hi; h++) {
+      const v = hours[h] || 0; const lbl = ((h + 11) % 12 + 1) + (h < 12 ? 'a' : 'p');
+      html += `<div><span>${v || ''}</span><i class="${h === peak ? 'peak' : ''}" style="height:${(v / max) * 100}%"></i><span>${lbl}</span></div>`;
+    }
+    $('#hourBars').innerHTML = html;
+    $('#peakTxt').textContent = `Busiest: ${((peak + 11) % 12 + 1)}${peak < 12 ? 'am' : 'pm'}`;
+  }
+  let wk = '', tot = 0, max7 = 1; const days = [];
+  for (let i = 6; i >= 0; i--) { const k = shiftDay(statDay, -i); const d = dayStats(k); days.push([k, d]); max7 = Math.max(max7, d.orders); tot += d.orders; }
+  days.forEach(([k, d]) => { wk += `<div><span>${d.orders || ''}</span><i class="${k === statDay ? 'peak' : ''}" style="height:${(d.orders / max7) * 100}%"></i><span>${new Date(k + 'T12:00:00').toLocaleDateString([], { weekday: 'narrow' })}</span></div>`; });
+  $('#weekBars').innerHTML = wk;
+  $('#weekTxt').textContent = `${tot} orders in 7 days · ${s.selfJoin} joined by counter QR on ${dayLabel(statDay).toLowerCase()}`;
+}
+
+/* ----- settings ----- */
+let stColor = db.settings.color;
+function renderSettings() {
+  const s = db.settings;
+  $('#stName').value = s.name; $('#stTarget').value = s.target; $('#stMax').value = s.maxNum;
+  $('#stReset').checked = s.resetDaily; $('#stAwake').checked = s.awake; $('#stCode').textContent = s.venue;
+  stColor = s.color; swatches($('#stColors'), stColor, c => { stColor = c; applyAccent(c); });
+}
+$('#stSave').onclick = () => {
+  const s = db.settings, name = $('#stName').value.trim();
+  if (!name) { toast('Name cannot be empty'); return; }
+  s.name = name; s.color = stColor; s.target = Math.max(1, Math.min(120, +$('#stTarget').value || 15));
+  s.maxNum = Math.max(10, Math.min(99, Math.round(+$('#stMax').value) || 99));
+  s.resetDaily = $('#stReset').checked; s.awake = $('#stAwake').checked;
+  Ble.keepAwake({ on: s.awake });
+  save(); $('#shopTitle').textContent = s.name; broadcast(); toast('Saved');
+};
+$('#stNewCode').onclick = async () => {
+  if (!(await askConfirm('Make a new restaurant code? Boards and pagers using the old code stop working until set up again.', 'Make new code', true))) return;
+  db.settings.venue = 1000 + Math.floor(Math.random() * 9000); save(); renderSettings(); $('#shopCode').textContent = db.settings.venue; broadcast();
+};
+$('#clearBtn').onclick = async () => {
+  if (!(await askConfirm('Delete all finished orders from this phone? Export first if you need them.', 'Delete history', true))) return;
+  db.orders = db.orders.filter(o => o.status === 'prep' || o.status === 'ready'); save(); toast('History cleared');
+};
+$('#boardPairBtn').onclick = () => openSheet(`
+  <h3>Set up a Now Serving board</h3>
+  <p class="muted" style="margin-top:0">On the spare phone or tablet: install Tawag → <b>Now Serving board</b> → <b>Scan the board QR</b>.</p>
+  <div class="qrbox">${qrSvg(boardUrl())}<b>Restaurant code ${db.settings.venue}</b></div>
+  <button class="btn big block" style="margin-top:14px" onclick="closeSheet()">Done</button>`);
+
+/* ----- CSV export ----- */
+function csvFor(orders) {
+  const head = ['Date', 'Order #', 'Customer', 'Items', 'Type', 'Source', 'Ordered', 'Ready', 'Picked up', 'Prep (min)', 'Pickup delay (min)', 'Total wait (min)', 'Times buzzed', 'Status'];
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const t = x => x ? new Date(x).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  const m = x => x == null ? '' : x.toFixed(1);
+  const rows = orders.sort((a, b) => a.created - b.created).map(o => [
+    o.day, o.n, o.name, o.items, o.type, o.src === 'self' ? 'Counter QR' : 'Staff', t(o.created), t(o.readyAt), o.status === 'done' ? t(o.doneAt) : '',
+    m(o.readyAt ? mins(o.readyAt - o.created) : null), m(o.readyAt && o.status === 'done' ? mins(o.doneAt - o.readyAt) : null),
+    m(o.status === 'done' ? mins(o.doneAt - o.created) : null), o.readyAt ? (o.nudges || 0) + 1 : 0,
+    { done: 'Picked up', noshow: 'No-show', cancelled: 'Cancelled', prep: 'Preparing', ready: 'Ready' }[o.status]
+  ].map(q).join(','));
+  return '﻿' + [head.map(q).join(','), ...rows].join('\r\n');
+}
+async function shareFile(filename, data, mime, isBase64) {
+  if (isNative && window.Capacitor.Plugins.Filesystem && window.Capacitor.Plugins.Share) {
+    const { Filesystem, Share } = window.Capacitor.Plugins;
+    const opts = { path: filename, data, directory: 'CACHE' };
+    if (!isBase64) opts.encoding = 'utf8';
+    const r = await Filesystem.writeFile(opts);
+    await Share.share({ title: filename, files: [r.uri] });
+  } else {
+    const a = document.createElement('a');
+    a.href = isBase64 ? `data:${mime};base64,${data}` : URL.createObjectURL(new Blob([data], { type: mime }));
+    a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  }
+}
+const safeName = () => db.settings.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'Tawag';
+$('#exportDayBtn').onclick = () => shareFile(`${safeName()}-orders-${histDay}.csv`, csvFor(db.orders.filter(o => o.day === histDay)), 'text/csv').catch(e => toast('Export failed: ' + e.message));
+$('#exportAllBtn').onclick = () => shareFile(`${safeName()}-all-orders.csv`, csvFor([...db.orders]), 'text/csv').catch(e => toast('Export failed: ' + e.message));
+
+/* ----- printable stand card (PNG, A6 portrait @ 2x) ----- */
+function drawQr(ctx, text, x, y, size) {
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const c = q.getModuleCount(), m = 2, cell = size / (c + m * 2);
+  ctx.fillStyle = '#fff'; ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = '#111';
+  for (let r = 0; r < c; r++) for (let k = 0; k < c; k++) if (q.isDark(r, k)) ctx.fillRect(Math.floor(x + (k + m) * cell), Math.floor(y + (r + m) * cell), Math.ceil(cell), Math.ceil(cell));
+}
+function wrapText(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' '); let line = '', lines = [];
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+  lines.push(line); lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh)); return lines.length;
+}
+function makeStandCard() {
+  const W = 1240, H = 1748, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'), acc = db.settings.color, F = 'system-ui,-apple-system,Roboto,Arial,sans-serif';
+  x.fillStyle = '#FFF7F0'; x.fillRect(0, 0, W, H);
+  x.fillStyle = acc; x.fillRect(0, 0, W, 330);
+  x.fillStyle = '#fff'; x.textAlign = 'center';
+  x.font = `900 92px ${F}`;
+  let size = 92; while (x.measureText(db.settings.name).width > W - 140 && size > 50) { size -= 4; x.font = `900 ${size}px ${F}`; }
+  x.fillText(db.settings.name, W / 2, 175);
+  x.font = `700 46px ${F}`; x.fillText('Scan to get buzzed when your order is ready', W / 2, 262);
+  x.fillStyle = '#fff'; x.shadowColor = 'rgba(0,0,0,.12)'; x.shadowBlur = 40;
+  x.beginPath(); if (x.roundRect) x.roundRect(220, 400, 800, 800, 50); else x.rect(220, 400, 800, 800); x.fill(); x.shadowBlur = 0;
+  drawQr(x, counterUrl(), 260, 440, 720);
+  const steps = ['Turn on Bluetooth', 'Scan with your phone camera', 'Tap "Turn on my buzzer" and keep the page open'];
+  x.textAlign = 'left';
+  steps.forEach((s, i) => {
+    const yy = 1300 + i * 120;
+    x.fillStyle = acc; x.beginPath(); x.arc(170, yy, 42, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#fff'; x.font = `900 46px ${F}`; x.textAlign = 'center'; x.fillText(i + 1, 170, yy + 16);
+    x.fillStyle = '#1F1A17'; x.textAlign = 'left'; x.font = `700 44px ${F}`; wrapText(x, s, 240, yy + 15, 880, 50);
+  });
+  x.fillStyle = '#7A6F68'; x.textAlign = 'center'; x.font = `600 32px ${F}`;
+  x.fillText('Android phones with Chrome · Powered by Tawag', W / 2, H - 60);
+  const data = c.toDataURL('image/png').split(',')[1];
+  shareFile(`${safeName()}-counter-card.png`, data, 'image/png', true).catch(e => toast('Could not save: ' + e.message));
+}
+$('#cardBtn').onclick = makeStandCard;
+
+function shareAppSheet() {
+  openSheet(`
+    <h3>Get Tawag</h3>
+    <p class="muted" style="margin-top:0">Scan with an Android phone to download the latest version.</p>
+    <div class="qrbox">${qrSvg(APK_URL)}<b>Tawag v${APP_VERSION}</b><span class="small muted" style="word-break:break-all;text-align:center">${APK_URL}</span></div>
+    <button class="btn big block" style="margin-top:14px" onclick="closeSheet()">Close</button>`);
+}
+$('#shareAppBtn').onclick = shareAppSheet;
+$('#shareAppBtn2').onclick = shareAppSheet;
+
+/* ======================= sounds ======================= */
+let actx = null;
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(freq, start, dur, vol = .5, type = 'sine') {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, a.currentTime + start);
+  g.gain.exponentialRampToValueAtTime(vol, a.currentTime + start + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + start + dur);
+  o.connect(g).connect(a.destination); o.start(a.currentTime + start); o.stop(a.currentTime + start + dur + .05);
+}
+function chime() { tone(880, 0, .5, .6); tone(660, .35, .8, .6); }
+function dingDong() { tone(1046, 0, .9, .9); tone(784, .55, 1.3, .9); tone(1046, 1.6, .9, .9); tone(784, 2.15, 1.3, .9); }
+function beep() { tone(1400, 0, .18, .7, 'square'); tone(1400, .28, .18, .7, 'square'); }
+
+/* ======================= BOARD ======================= */
+let boardVoice = true, boardKnown = new Map(), annQueue = [], annBusy = false, boardTimer = null;
+$('#boardScanBtn').onclick = () => scanQr(p => {
+  if (!p.r) { toast('That is not a Tawag QR'); return; }
+  $('#bdCode').value = p.r; $('#bdName').value = p.s || ''; toast('Board QR scanned');
+}, 'Scan the board QR on the staff phone');
+$('#boardStartBtn').onclick = async () => {
+  const v = +$('#bdCode').value;
+  if (!(v >= 1000 && v <= 9999)) { toast('Enter the 4-digit restaurant code'); return; }
+  audio(); // unlock sound with this tap
+  db.board = { venue: v, name: $('#bdName').value.trim(), voice: $('#bdVoice').checked }; save();
+  const r = await ensureBluetooth();
+  if (!r.ok) { openSheet(btProblemHtml(r.why) + `<button class="btn block" style="margin-top:12px" onclick="closeSheet()">OK</button>`); return; }
+  go('board');
+  enterBoard();
+};
+async function enterBoard() {
+  boardVoice = db.board.voice; boardKnown = new Map(); annQueue = []; boardShown = null;
+  $('#boardName').textContent = db.board.name || 'Order pickup';
+  $('#boardFoot').textContent = `Restaurant ${db.board.venue} · Tawag v${APP_VERSION}`;
+  renderBoard([]);
+  Ble.keepAwake({ on: true });
+  await Ble.listen({ venue: db.board.venue, number: 0 });
+}
+function leaveBoard() { Ble.stop(); Ble.keepAwake({ on: false }); $('#boardFlash').classList.remove('on'); }
+$('#boardExit').onclick = () => go('home');
+$('#boardTest').onclick = () => { audio(); announce(88, true); };
+function onBoardState(s) {
+  const pill = $('#boardPill');
+  if (s.inRange) { pill.style.color = '#7BE0A6'; pill.classList.add('pulse'); $('#boardSig').textContent = 'Connected'; }
+  else { pill.style.color = '#B9AAA2'; pill.classList.remove('pulse'); $('#boardSig').textContent = s.status === 'error' ? 'Bluetooth off' : 'Searching…'; }
+  const calls = s.calls || [], nudges = s.nudges || [];
+  const now = new Map(calls.map((n, i) => [n, nudges[i] || 0]));
+  if (s.inRange || calls.length) {
+    now.forEach((nz, n) => { if (!boardKnown.has(n) || boardKnown.get(n) !== nz) announce(n); });
+    boardKnown = now;
+    renderBoard(calls);
+  }
+}
+let boardShown = null;
+function renderBoard(calls) {
+  const key = calls.join(',');
+  if (key === boardShown) return; // redraw only when the list changes, so tiles don't re-animate
+  boardShown = key;
+  $('#boardGrid').innerHTML = calls.length ? calls.map(n => `<div class="b num">${n}</div>`).join('')
+    : `<div class="board-empty">Orders will appear here when they're ready</div>`;
+}
+function announce(n, test) {
+  if (!annQueue.includes(n)) annQueue.push(n);
+  if (!annBusy) nextAnnouncement(test);
+}
+function nextAnnouncement(test) {
+  const n = annQueue.shift();
+  if (n == null) { annBusy = false; $('#boardFlash').classList.remove('on'); return; }
+  annBusy = true;
+  $('#boardFlashNo').textContent = n;
+  $('#boardFlash').classList.add('on');
+  dingDong();
+  if (boardVoice || test) setTimeout(() => Ble.speak({ text: `Order number ${n}, is ready. Order number ${n}.` }), 2900);
+  setTimeout(() => nextAnnouncement(), 7500);
+}
+
+/* ======================= CUSTOMER (app) ======================= */
+let scanStream = null, scanLoop = null;
+function parseTawagUrl(text) {
+  try {
+    const u = new URL(text);
+    const p = Object.fromEntries(u.searchParams.entries());
+    return { r: +p.r || 0, n: +p.n || 0, s: p.s || '', board: !!p.board };
+  } catch (e) { return null; }
+}
+async function scanQr(onResult, title) {
+  openSheet(`<h3>${esc(title || 'Scan QR')}</h3>
+    <div class="scanwrap"><video id="sheetVideo" playsinline muted></video><div class="frame"></div></div>
+    <p class="small muted" id="scanMsg" style="text-align:center">Point the camera at the QR code</p>
+    <button class="btn ghost block" onclick="closeSheet()">Cancel</button>`);
+  const video = $('#sheetVideo');
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) { $('#scanMsg').textContent = 'Camera not available. Allow camera access, or type the code instead.'; return; }
+  video.srcObject = scanStream; await video.play().catch(() => {});
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  clearInterval(scanLoop);
+  scanLoop = setInterval(() => {
+    if (!video.videoWidth || !window.jsQR) return;
+    const w = 480, h = Math.round(480 * video.videoHeight / video.videoWidth);
+    cv.width = w; cv.height = h; cx.drawImage(video, 0, 0, w, h);
+    const code = jsQR(cx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      const p = parseTawagUrl(code.data);
+      closeSheet();
+      if (p) onResult(p); else toast('That is not a Tawag QR');
+    }
+  }, 250);
+}
+function stopScan() {
+  clearInterval(scanLoop); scanLoop = null;
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+}
+$('#custScanBtn').onclick = () => scanQr(p => {
+  if (p.board) { toast('That is the board QR. Use it on the Now Serving board.'); return; }
+  if (!p.r) { toast('That is not a Tawag QR'); return; }
+  if (!p.n) { openSheet(`<h3>This is the counter QR</h3><p>To get a number from the counter QR, scan it with your normal phone camera. It opens a web page.</p><p class="muted">Or ask the cashier for your order QR and scan that here.</p><button class="btn block" onclick="closeSheet()">OK</button>`); return; }
+  startPager(p.r, p.n, p.s);
+}, 'Scan your order QR');
+$('#cuGo').onclick = () => {
+  const r = +$('#cuCode').value, n = +$('#cuNo').value;
+  if (!(r >= 1000 && r <= 9999)) { toast('Enter the 4-digit restaurant code'); return; }
+  if (!(n >= 1 && n <= 99)) { toast('Enter your order number'); return; }
+  startPager(r, n, '');
+};
+
+let pagerBeep = null;
+async function startPager(venue, number, name) {
+  db.pager = { venue, number, name: name || '' }; save();
+  go('pager'); renderPager({ status: 'waiting', inRange: false });
+  audio();
+  const r = await ensureBluetooth();
+  if (!r.ok) { $('#pgStatus').innerHTML = 'Bluetooth needed'; $('#pgHint').innerHTML = btProblemHtml(r.why); return; }
+  await Ble.listen({ venue, number });
+}
+async function resumePager() {
+  if (!db.pager) return go('home');
+  const s = await Ble.getState();
+  if (s.mode === 'listen' && s.number === db.pager.number) { go('pager'); onPagerState(s); }
+  else startPager(db.pager.venue, db.pager.number, db.pager.name);
+}
+function renderPager(s) {
+  const p = db.pager || {};
+  $('#pgShop').textContent = p.name || `Restaurant ${p.venue || ''}`;
+  $('#pgNo').textContent = p.number || '';
+  $('#pgCallNo').textContent = p.number || '';
+  const sig = $('#pgSig');
+  sig.style.color = s.inRange ? '#7BE0A6' : '#B9AAA2'; sig.classList.toggle('pulse', !!s.inRange);
+  sig.lastElementChild.textContent = s.inRange ? 'Connected to the counter' : 'Looking for the counter…';
+  const st = s.status;
+  $('#pgDevice').classList.toggle('wait', st === 'waiting');
+  $('#pgCalling').classList.toggle('on', st === 'calling');
+  if (st === 'waiting') { $('#pgStatus').textContent = 'Waiting for your order…'; $('#pgHint').textContent = 'You can lock your phone. It will buzz, beep and flash when your order is ready.'; }
+  if (st === 'coming') { $('#pgStatus').textContent = 'Your order is ready!'; $('#pgHint').textContent = 'Head to the counter. Show your number.'; }
+  if (st === 'done') { $('#pgStatus').textContent = 'Enjoy your meal! 🍽️'; $('#pgHint').textContent = 'Your order was picked up. Thanks for waiting.'; $('#pgLeave').textContent = 'Done'; }
+  else $('#pgLeave').textContent = 'Leave queue';
+  // In a browser demo there's no native buzzer, so beep from the page.
+  if (!isNative) {
+    if (st === 'calling' && !pagerBeep) { beep(); pagerBeep = setInterval(() => { beep(); navigator.vibrate && navigator.vibrate([400, 200, 400]); }, 1500); }
+    if (st !== 'calling' && pagerBeep) { clearInterval(pagerBeep); pagerBeep = null; }
+  }
+}
+function onPagerState(s) {
+  if (s.mode === 'idle' && s.status === 'idle') return;
+  renderPager(s);
+  if (s.status === 'done') { db.pager = null; save(); }
+}
+$('#pgAck').onclick = () => Ble.ack();
+$('#pgLeave').onclick = async () => { await Ble.stop(); if (pagerBeep) { clearInterval(pagerBeep); pagerBeep = null; } $('#pgCalling').classList.remove('on'); db.pager = null; save(); go('home'); };
+
+/* ======================= deep links & resume ======================= */
+function handleLink(url) {
+  if (!url || !url.startsWith('tawag://')) return;
+  const p = parseTawagUrl(url.replace('tawag://', 'https://x/'));
+  if (p && p.r && p.n) startPager(p.r, p.n, p.s);
+}
+if (NativeApp) {
+  NativeApp.addListener('appUrlOpen', e => handleLink(e.url));
+  NativeApp.addListener('resume', () => {
+    if (current === 'staff') startBroadcast();
+    else if (current === 'pager' && db.pager) Ble.getState().then(onPagerState);
+  });
+  NativeApp.addListener('backButton', () => {
+    if ($('#sheetBg').classList.contains('on')) return closeSheet();
+    if (current === 'home') NativeApp.minimizeApp(); else if (current !== 'pager') go('home');
+  });
+}
+
+/* ======================= boot ======================= */
+(async function boot() {
+  // Browser demo: ?role=staff|board|customer opens straight into a mode (used by demo.html)
+  const qp = new URLSearchParams(location.search);
+  const role = qp.get('role');
+  if (role && qp.get('venue')) { db.settings.venue = +qp.get('venue'); if (qp.get('name')) db.settings.name = qp.get('name'); }
+  if (role === 'staff') { if (!db.settings.name) { db.settings.name = qp.get('name') || 'Lola Nena\'s Lugawan'; save(); } go('staff'); return; }
+  if (role === 'board') { db.board = { venue: db.settings.venue, name: db.settings.name, voice: true }; go('boardSetup'); return; }
+  if (role === 'customer') { go('customer'); return; }
+
+  let launch = null;
+  if (NativeApp) { try { launch = (await NativeApp.getLaunchUrl())?.url; } catch (e) {} }
+  if (launch && launch.startsWith('tawag://')) { go('home'); handleLink(launch); return; }
+  if (isNative) {
+    const s = await Ble.getState().catch(() => ({}));
+    if (s.mode === 'listen' && db.pager && s.number === db.pager.number) { go('pager'); onPagerState(s); return; }
+  }
+  go('home');
+})();
+</script>
+</body>
+</html>

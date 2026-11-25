@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E0B0A">
+<title>Tawag pager</title>
+<link rel="icon" href="icon.png">
+<style>
+:root{--accent:#E8552D;--good:#7BE0A6;--muted:#B9AAA2}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:linear-gradient(180deg,#201815,#0E0B0A);color:#fff;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+body{display:flex;flex-direction:column;align-items:center;text-align:center;padding:22px 20px 28px;min-height:100vh}
+.num{font-variant-numeric:tabular-nums;font-weight:900;letter-spacing:-.02em}
+.kicker{font-size:12px;letter-spacing:.24em;color:var(--muted);font-weight:700}
+h1{font-size:26px;margin:6px 0 0;font-weight:900}
+.device{width:min(74vw,300px);aspect-ratio:1;border-radius:50%;position:relative;display:grid;place-items:center;margin:26px auto 14px;
+  background:radial-gradient(circle at 50% 35%,#3A2E29,#171210 70%);box-shadow:inset 0 -10px 30px rgba(0,0,0,.6),0 20px 50px rgba(0,0,0,.5)}
+.device .ring{position:absolute;inset:-14px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 60%,transparent);opacity:0}
+.device.wait .ring{animation:ring 2.4s infinite}
+@keyframes ring{0%{transform:scale(.9);opacity:.5}100%{transform:scale(1.15);opacity:0}}
+.device .lbl{position:absolute;top:22%;font-size:13px;letter-spacing:.25em;color:var(--muted);font-weight:700}
+.device .no{font-size:clamp(76px,25vw,124px);color:var(--accent);line-height:1}
+.device .no.q{font-size:64px;color:#5A4B44}
+.status{font-size:21px;font-weight:800;margin-top:6px}
+.hint{color:var(--muted);margin:8px auto 0;max-width:360px;line-height:1.4}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:380px;min-height:58px;margin:10px auto 0;border:0;border-radius:18px;
+  background:var(--accent);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;border:1.5px solid #3B302B;color:#fff;font-size:16px;min-height:50px}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;background:#231B18;color:var(--muted);font-size:14px;font-weight:600;margin-top:14px}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.pill.on{color:var(--good)} .pill.on .dot{animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 currentColor}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.box{background:#1B1513;border:1px solid #2E2420;border-radius:18px;padding:16px;max-width:380px;margin:16px auto 0;text-align:left;line-height:1.45;color:#E9DED8}
+.box b{color:#fff}
+.steps{list-style:none;padding:0;margin:14px auto 0;max-width:340px;text-align:left}
+.steps li{display:flex;gap:12px;align-items:center;margin:10px 0;color:#E9DED8}
+.steps i{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-style:normal;font-weight:900}
+.foot{margin-top:auto;padding-top:24px;color:#6E615B;font-size:13px}
+.calling{position:fixed;inset:0;z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px}
+.calling.on{display:flex;animation:fl .45s steps(1) infinite}
+@keyframes fl{0%{background:var(--accent)}50%{background:#0E0B0A}}
+.calling .big{font-size:clamp(130px,45vw,260px);line-height:.9}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+  <div class="kicker">TAWAG PAGER</div>
+  <h1 id="shop">&nbsp;</h1>
+
+  <div class="device" id="device"><div class="ring"></div><div class="lbl" id="noLbl">ORDER</div><div class="no num" id="no">–</div></div>
+
+  <div class="status" id="status">Get buzzed when your order is ready</div>
+  <div class="hint" id="hint"></div>
+
+  <ol class="steps" id="steps">
+    <li><i>1</i><span>Turn on <b>Bluetooth</b></span></li>
+    <li><i>2</i><span>Tap <b>Turn on my buzzer</b> and choose the device shown</span></li>
+    <li><i>3</i><span>Keep this page open. We'll buzz you</span></li>
+  </ol>
+
+  <button class="btn" id="connectBtn">🔔 Turn on my buzzer</button>
+  <button class="btn ghost hidden" id="notifyBtn">Also notify me if I switch apps</button>
+  <a class="btn ghost hidden" id="appLink">Open in the Tawag app</a>
+  <span class="pill hidden" id="sig"><span class="dot"></span><span id="sigTxt"></span></span>
+  <div class="box hidden" id="msg"></div>
+
+  <div class="foot">Powered by Tawag · Bluetooth order pager</div>
+
+  <div class="calling" id="calling">
+    <div style="font-size:26px;font-weight:900;letter-spacing:.08em">YOUR ORDER IS READY</div>
+    <div class="big num" id="callNo"></div>
+    <div style="font-size:18px;font-weight:700">Please pick it up at the counter</div>
+    <button class="btn" id="ackBtn" style="background:#fff;color:#111;max-width:260px;margin-top:16px">I'm coming 👋</button>
+  </div>
+
+<script>
+'use strict';
+const SVC = '7a1f0001-5a6e-4c1b-9a2d-7461776167aa';
+const INFO = '7a1f0002-5a6e-4c1b-9a2d-7461776167aa';
+const JOIN = '7a1f0003-5a6e-4c1b-9a2d-7461776167aa';
+const STATUS = '7a1f0004-5a6e-4c1b-9a2d-7461776167aa';
+const APK_URL = 'https://github.com/gnotesamsung7-hue/tawag/releases/latest/download/Tawag.apk';
+
+const $ = s => document.querySelector(s);
+const qp = new URLSearchParams(location.search);
+const venue = +qp.get('r') || 0;
+let myNumber = +qp.get('n') || 0;
+const shopName = qp.get('s') || '';
+const isBoardQr = qp.has('board');
+const storeKey = `tawag.web.${venue}.${new Date().toDateString()}`;
+if (!myNumber) myNumber = +(localStorage.getItem(storeKey) || 0); // self-join number survives a reload
+
+let device = null, statusChar = null, state = 'idle', lastCall = '', ackedCall = '', wakeLock = null, alertTimer = null, actx = null, retryTimer = null;
+
+const ua = navigator.userAgent;
+const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/.test(ua);
+
+function show(el, on) { $(el).classList.toggle('hidden', !on); }
+function setNo(n) { const el = $('#no'); el.textContent = n ? n : '?'; el.classList.toggle('q', !n); $('#callNo').textContent = n || ''; }
+function setSig(on, text) { show('#sig', true); $('#sig').classList.toggle('on', on); $('#sigTxt').textContent = text; }
+function message(html) { $('#msg').innerHTML = html; show('#msg', !!html); }
+
+$('#shop').textContent = shopName || (venue ? `Restaurant ${venue}` : 'Tawag');
+if (shopName) document.title = `${shopName} · Tawag pager`;
+setNo(myNumber);
+$('#noLbl').textContent = myNumber ? 'ORDER' : 'YOUR NUMBER';
+
+if (myNumber && isAndroid) {
+  const deep = `intent://join?r=${venue}&n=${myNumber}&s=${encodeURIComponent(shopName)}#Intent;scheme=tawag;package=com.markdave.tawag;S.browser_fallback_url=${encodeURIComponent(APK_URL)};end`;
+  $('#appLink').href = deep;
+}
+
+/* ---------- sound / vibration ---------- */
+function audio() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(f, t0, d, v = .7) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = f;
+  g.gain.setValueAtTime(.0001, a.currentTime + t0); g.gain.exponentialRampToValueAtTime(v, a.currentTime + t0 + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + t0 + d);
+  o.connect(g).connect(a.destination); o.start(a.currentTime + t0); o.stop(a.currentTime + t0 + d + .05);
+}
+function beep() { tone(1400, 0, .18); tone(1400, .28, .18); tone(1750, .56, .3); }
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state !== 'idle' && state !== 'done') keepAwake(); });
+
+function startAlert() {
+  $('#calling').classList.add('on');
+  beep(); navigator.vibrate && navigator.vibrate([600, 250, 600, 250, 600]);
+  clearInterval(alertTimer);
+  alertTimer = setInterval(() => { beep(); navigator.vibrate && navigator.vibrate([600, 250, 600, 250, 600]); }, 2000);
+  if (document.visibilityState !== 'visible') systemNotify();
+}
+function stopAlert() {
+  clearInterval(alertTimer); alertTimer = null;
+  navigator.vibrate && navigator.vibrate(0);
+  $('#calling').classList.remove('on');
+}
+async function systemNotify() {
+  try {
+    if (Notification.permission !== 'granted' || !navigator.serviceWorker) return;
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification(`Order #${myNumber} is READY!`, {
+      body: `Please pick it up at ${shopName || 'the counter'}`, tag: 'tawag', renotify: true, requireInteraction: true,
+      vibrate: [600, 250, 600, 250, 600]
+    });
+  } catch (e) {}
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/* ---------- status from the staff phone ---------- */
+function onStatus(s) {
+  // Q = waiting for a number, W12 = waiting, C12:1 = called (1 = buzz-again toggle), D12 = picked up
+  const kind = s[0];
+  const n = parseInt(s.slice(1), 10) || 0;
+  if (n && n !== myNumber) { myNumber = n; localStorage.setItem(storeKey, String(n)); setNo(n); $('#noLbl').textContent = 'ORDER'; }
+  $('#device').classList.toggle('wait', kind === 'W' || kind === 'Q');
+  if (kind === 'Q') { state = 'queue'; $('#status').textContent = 'Getting your number…'; $('#hint').textContent = 'The counter is giving you a queue number.'; }
+  if (kind === 'W') { state = 'waiting'; stopAlert(); $('#status').textContent = 'Waiting for your order…'; $('#hint').textContent = 'Keep this page open and your screen on. We\'ll buzz, beep and flash when it\'s ready.'; }
+  if (kind === 'C') {
+    if (s !== ackedCall) { state = 'calling'; if (s !== lastCall || !alertTimer) startAlert(); }
+    $('#status').textContent = 'Your order is ready!'; $('#hint').textContent = 'Head to the counter and show your number.';
+    lastCall = s;
+  }
+  if (kind === 'D') {
+    state = 'done'; stopAlert(); localStorage.removeItem(storeKey);
+    $('#status').textContent = 'Enjoy your meal! 🍽️'; $('#hint').textContent = 'Your order was picked up. Thanks for waiting!';
+    setSig(false, 'Finished'); show('#notifyBtn', false);
+    try { wakeLock && wakeLock.release(); } catch (e) {}
+    try { device && device.gatt.connected && device.gatt.disconnect(); } catch (e) {}
+  }
+}
+$('#ackBtn').onclick = () => { ackedCall = lastCall; state = 'coming'; stopAlert(); };
+
+/* ---------- Web Bluetooth ---------- */
+const dec = v => new TextDecoder().decode(v);
+async function attach() {
+  setSig(false, 'Connecting…');
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(SVC);
+  const info = dec(await (await svc.getCharacteristic(INFO)).readValue()).split('\n');
+  if (venue && +info[0] !== venue) {
+    device.gatt.disconnect();
+    throw Object.assign(new Error('wrong shop'), { wrongShop: info[1] || info[0] });
+  }
+  if (!shopName && info[1]) $('#shop').textContent = info[1];
+  statusChar = await svc.getCharacteristic(STATUS);
+  statusChar.addEventListener('characteristicvaluechanged', e => onStatus(dec(e.target.value)));
+  await statusChar.startNotifications();
+  const join = await svc.getCharacteristic(JOIN);
+  await join.writeValueWithResponse(new TextEncoder().encode(String(myNumber || 0)));
+  onStatus(dec(await statusChar.readValue()));
+  setSig(true, 'Connected to the counter');
+  message('');
+}
+function onDisconnected() {
+  if (state === 'done') return;
+  setSig(false, 'Reconnecting…');
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(async () => {
+    try { await attach(); } catch (e) { onDisconnected(); }
+  }, 3000);
+}
+$('#connectBtn').onclick = async () => {
+  audio(); // unlock sound while we have the tap
+  if (!navigator.bluetooth) return unsupported();
+  try {
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+  } catch (e) {
+    if (e.name === 'NotFoundError') message('<b>No counter found.</b> Make sure Bluetooth is on and you\'re near the counter, then try again. If no device appears, ask staff to open Tawag.');
+    else message(`<b>Could not start Bluetooth.</b> ${e.message || ''}`);
+    return;
+  }
+  device.addEventListener('gattserverdisconnected', onDisconnected);
+  show('#steps', false); show('#connectBtn', false);
+  keepAwake();
+  try {
+    await attach();
+    if ('Notification' in window && Notification.permission === 'default') show('#notifyBtn', true);
+  } catch (e) {
+    if (e.wrongShop) {
+      device.removeEventListener('gattserverdisconnected', onDisconnected);
+      message(`<b>That was a different shop (${e.wrongShop}).</b> Tap the button again and choose the other device.`);
+      show('#connectBtn', true); show('#sig', false);
+    } else onDisconnected();
+  }
+};
+$('#notifyBtn').onclick = async () => { try { await Notification.requestPermission(); } catch (e) {} show('#notifyBtn', false); };
+
+function unsupported() {
+  show('#steps', false); show('#connectBtn', false);
+  $('#status').textContent = myNumber ? `Your number is #${myNumber}` : 'Bluetooth buzzer not available';
+  let html;
+  if (isIOS) html = '<b>iPhones can\'t use Bluetooth buzzers from a web page.</b><br>Keep this number. Watch the <b>Now Serving</b> screen or listen for staff calling your number.';
+  else if (isAndroid) html = `<b>This browser can't use Bluetooth.</b> Open this page in <b>Chrome</b>.<br><br><a class="btn" style="font-size:16px" href="intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end">Open in Chrome</a>`;
+  else html = '<b>This browser can\'t use Bluetooth.</b> Use Chrome on an Android phone, or watch the Now Serving screen.';
+  message(html);
+}
+
+/* ---------- start ---------- */
+if (isBoardQr) {
+  show('#steps', false); show('#connectBtn', false); show('#device', false);
+  $('#status').textContent = 'Board setup QR';
+  message('This QR sets up the <b>Now Serving board</b>. On the display phone or tablet, open <b>Tawag → Now Serving board → Scan the board QR</b>.');
+} else if (!venue) {
+  show('#steps', false); show('#connectBtn', false);
+  $('#status').textContent = 'Scan the QR code at the counter';
+  message('This page works with a <b>Tawag</b> QR code from a restaurant or food stall.');
+} else {
+  if (myNumber && isAndroid) show('#appLink', true);
+  if (!navigator.bluetooth) unsupported();
+  else if (navigator.bluetooth.getAvailability) navigator.bluetooth.getAvailability().then(ok => { if (!ok) message('<b>Bluetooth seems off.</b> Turn it on, then tap the button.'); }).catch(() => {});
+}
+</script>
+</body>
+</html>

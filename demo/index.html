@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tawag — live demo</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#FFF7F0;color:#1F1A17}
+header{display:flex;align-items:center;gap:16px;padding:18px 28px 6px;flex-wrap:wrap}
+header h1{margin:0;font-size:30px;font-weight:900;letter-spacing:-.02em}
+header h1 span{color:#E8552D}
+header p{margin:0;color:#7A6F68;flex:1;min-width:260px}
+.steps{display:flex;gap:10px;flex-wrap:wrap;padding:6px 28px 0}
+.steps div{background:#fff;border-radius:12px;padding:8px 12px;font-size:14px;box-shadow:0 1px 2px rgba(60,30,10,.06),0 4px 12px rgba(60,30,10,.06)}
+.steps b{color:#E8552D}
+#stage{display:flex;gap:28px;align-items:flex-start;justify-content:center;padding:18px 20px 30px;transform-origin:top center}
+.dev{display:flex;flex-direction:column;align-items:center;gap:10px}
+.dev .lbl{font-weight:800;font-size:15px}
+.dev .lbl small{display:block;font-weight:500;color:#7A6F68;text-align:center}
+.phone{width:380px;height:780px;border-radius:46px;background:#111;padding:12px;box-shadow:0 24px 60px rgba(40,20,10,.25)}
+.tablet{width:720px;height:470px;border-radius:30px;background:#111;padding:14px;box-shadow:0 24px 60px rgba(40,20,10,.25)}
+iframe{width:100%;height:100%;border:0;border-radius:34px;background:#fff}
+.tablet iframe{border-radius:18px;background:#0E0B0A}
+.col{display:flex;flex-direction:column;gap:22px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Tawag <span>live demo</span></h1>
+  <p>Three devices, one counter. In a real shop these run on separate phones and talk over Bluetooth. Here they talk inside the browser.</p>
+</header>
+<div class="steps">
+  <div><b>1</b> Staff: tap <b>＋ New order</b>, type a name, <b>Save &amp; show QR</b></div>
+  <div><b>2</b> Tap <b>Demo: customer scans this</b></div>
+  <div><b>3</b> Board: tap <b>Start board</b> (turns sound on)</div>
+  <div><b>4</b> Staff: tap <b>Ready 🔔</b> and watch the pager buzz and the board flash</div>
+  <div><b>5</b> <b>Picked up ✓</b> logs the wait time. See <b>Stats</b></div>
+</div>
+<div id="stage">
+  <div class="dev"><div class="lbl">Staff counter <small>Cashier's phone</small></div><div class="phone"><iframe id="fStaff" title="Staff"></iframe></div></div>
+  <div class="col">
+    <div class="dev"><div class="lbl">Now Serving board <small>Spare tablet facing customers</small></div><div class="tablet"><iframe id="fBoard" title="Board" allow="autoplay"></iframe></div></div>
+  </div>
+  <div class="dev"><div class="lbl">Customer <small>Their phone becomes the pager</small></div><div class="phone"><iframe id="fCust" title="Customer" allow="autoplay; vibrate"></iframe></div></div>
+</div>
+<script>
+const APP = document.currentScript.dataset.app || '../www/index.html';
+const V = 4821, N = encodeURIComponent("Lola Nena's Lugawan");
+try { localStorage.removeItem('tawag.v1'); } catch (e) {}
+document.getElementById('fStaff').src = `${APP}?role=staff&venue=${V}&name=${N}`;
+setTimeout(() => {
+  document.getElementById('fBoard').src = `${APP}?role=board&venue=${V}&name=${N}`;
+  document.getElementById('fCust').src = `${APP}?role=customer&venue=${V}&name=${N}`;
+}, 600);
+// Relay simulated Bluetooth messages between the three frames.
+addEventListener('message', e => {
+  const d = e.data; if (!d || !d.__tawag) return;
+  ['fStaff', 'fBoard', 'fCust'].forEach(id => { const f = document.getElementById(id); if (f.contentWindow && f.contentWindow !== e.source) f.contentWindow.postMessage(d, '*'); });
+});
+function fit() {
+  const st = document.getElementById('stage');
+  st.style.transform = ''; const w = st.scrollWidth, avail = window.innerWidth - 20;
+  const s = Math.min(1, avail / w); st.style.transform = `scale(${s})`; st.style.height = (st.scrollHeight * s) + 'px';
+}
+addEventListener('resize', fit); setTimeout(fit, 50);
+</script>
+</body>
+</html>
